@@ -22,6 +22,16 @@ app.UseRouting();
 app.UseAuthorization();
 
 app.MapControllerRoute(
+    name: "booking",
+    pattern: "booking/{action=Index}/{id?}",
+    defaults: new { controller = "Booking" });
+
+app.MapControllerRoute(
+    name: "transfer", 
+    pattern: "transfer/{action=Index}/{id?}",
+    defaults: new { controller = "Transfer" });
+
+app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Transfer}/{action=Index}/{id?}");
 

@@ -1,0 +1,333 @@
+@{
+    ViewData["Title"] = "Isolation Levels Demo";
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>@ViewData["Title"]</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .session-info {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196F3;
+        }
+        .session-id {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 18px;
+            color: #1976D2;
+        }
+        .seat-status {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border: 2px solid #ddd;
+        }
+        .seat-available { border-color: #4CAF50; background-color: #e8f5e8; }
+        .seat-reserving { border-color: #FF9800; background-color: #fff3e0; }
+        .seat-booked { border-color: #f44336; background-color: #ffebee; }
+        
+        .isolation-selector {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #fff3cd;
+            border-radius: 5px;
+            border: 1px solid #ffeaa7;
+        }
+        .isolation-selector select {
+            padding: 8px 12px;
+            font-size: 16px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            margin-left: 10px;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 10px 5px;
+            transition: background-color 0.3s;
+        }
+        .btn-book {
+            background-color: #2196F3;
+            color: white;
+        }
+        .btn-book:hover {
+            background-color: #1976D2;
+        }
+        .btn-book:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .btn-reset {
+            background-color: #FF9800;
+            color: white;
+        }
+        .btn-reset:hover {
+            background-color: #F57C00;
+        }
+        .btn-refresh {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .btn-refresh:hover {
+            background-color: #388E3C;
+        }
+        .message {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .instructions {
+            background-color: #e1f5fe;
+            border: 1px solid #b3e5fc;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 30px;
+        }
+        .instructions h3 {
+            color: #0277bd;
+            margin-top: 0;
+        }
+        .debug-info {
+            background-color: #f3e5f5;
+            border: 1px solid #e1bee7;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .real-time-status {
+            background-color: #fff;
+            border: 2px solid #2196F3;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-available { background-color: #4CAF50; }
+        .status-reserving { background-color: #FF9800; }
+        .status-booked { background-color: #f44336; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎭 Concert Seat Booking - Isolation Levels Demo</h1>
+        
+        <div class="session-info">
+            <h2>📱 Session: <span class="session-id">@ViewBag.SessionId</span></h2>
+            <p><strong>Purpose:</strong> Demonstrate how PostgreSQL isolation levels affect concurrent transactions</p>
+        </div>
+
+        <div class="real-time-status">
+            <h3>🎪 Seat A1 Status</h3>
+            <div id="seatStatusDisplay">
+                @{
+                    var statusClass = ViewBag.SeatStatus switch
+                    {
+                        "available" => "seat-available",
+                        "reserving" => "seat-reserving", 
+                        "booked" => "seat-booked",
+                        _ => ""
+                    };
+                    var indicatorClass = ViewBag.SeatStatus switch
+                    {
+                        "available" => "status-available",
+                        "reserving" => "status-reserving",
+                        "booked" => "status-booked", 
+                        _ => ""
+                    };
+                }
+                <div class="seat-status @statusClass">
+                    <span class="status-indicator @indicatorClass"></span>
+                    <strong>Status:</strong> @(ViewBag.SeatStatus?.ToString().ToUpper() ?? "UNKNOWN")
+                    @if (ViewBag.SeatPrice != null)
+                    {
+                        <span style="float: right;"><strong>Price:</strong> $@ViewBag.SeatPrice</span>
+                    }
+                    <br>
+                    @if (ViewBag.BookedBy != null)
+                    {
+                        <span style="color: #d32f2f;"><strong>Booked by:</strong> @ViewBag.BookedBy</span>
+                    }
+                    @if (ViewBag.ReservedBy != null)
+                    {
+                        <span style="color: #f57c00;"><strong>Reserved by:</strong> @ViewBag.ReservedBy</span>
+                    }
+                </div>
+            </div>
+            <button class="btn btn-refresh" onclick="refreshStatus()">🔄 Refresh Status</button>
+        </div>
+
+        <div class="isolation-selector">
+            <h3>⚙️ Select Isolation Level:</h3>
+            <form method="post" action="/Booking/Book" style="display: inline;">
+                <label for="isolationLevel"><strong>Transaction Isolation:</strong></label>
+                <select name="isolationLevel" id="isolationLevel" onchange="updateIsolationInfo()">
+                    <option value="ReadUncommitted">Read Uncommitted (Lowest)</option>
+                    <option value="ReadCommitted">Read Committed (Default)</option>
+                    <option value="RepeatableRead">Repeatable Read</option>
+                    <option value="Serializable">Serializable (Strictest)</option>
+                </select>
+                
+                <button type="submit" class="btn btn-book" 
+                        @(ViewBag.SeatStatus == "available" ? "" : "disabled")>
+                    🎫 Book Seat A1
+                </button>
+            </form>
+            
+            <div id="isolationInfo" style="margin-top: 10px; font-size: 14px; color: #666;">
+                <strong>Read Uncommitted:</strong> In PostgreSQL, behaves same as Read Committed (PostgreSQL limitation)
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(ViewBag.Message))
+        {
+            <div class="message @(ViewBag.Message.ToString().Contains("SUCCESS") || ViewBag.Message.ToString().Contains("Demo reset") ? "success" : "error")">
+                @ViewBag.Message
+            </div>
+        }
+
+        <div style="text-align: center; margin: 20px 0;">
+            <form method="post" action="/Booking/Reset" style="display: inline;">
+                <button type="submit" class="btn btn-reset">🔄 Reset Demo</button>
+            </form>
+            <a href="/Transfer" class="btn" style="background-color: #9C27B0; color: white; text-decoration: none;">💸 Go to Transfer Demo</a>
+        </div>
+
+        <div class="instructions">
+            <h3>🧪 How to Test Isolation Levels:</h3>
+            <ol>
+                <li><strong>Single Browser Test:</strong>
+                    <ul>
+                        <li>Select an isolation level and click "Book Seat A1"</li>
+                        <li>During the 15-second processing delay, open another browser tab</li>
+                        <li>Navigate to this same page and try booking with a different isolation level</li>
+                        <li>Observe the different behaviors in the console logs</li>
+                    </ul>
+                </li>
+                <li><strong>Multi-Browser Test:</strong>
+                    <ul>
+                        <li>Open this page in Chrome and Firefox simultaneously</li>
+                        <li>Start booking in one browser, quickly switch to the other</li>
+                        <li>Try to book the same seat with different isolation levels</li>
+                    </ul>
+                </li>
+                <li><strong>Expected Behaviors:</strong>
+                    <ul>
+                        <li><strong>Read Uncommitted:</strong> ⚠️ PostgreSQL treats this same as Read Committed (safety feature)</li>
+                        <li><strong>Read Committed:</strong> Second session sees intermediate "reserving" state</li>
+                        <li><strong>Repeatable Read:</strong> Second session sees consistent "available" state throughout</li>
+                        <li><strong>Serializable:</strong> Second session may get serialization errors or wait for first to complete</li>
+                    </ul>
+                </li>
+            </ol>
+            
+            <div class="debug-info">
+                <strong>🐛 Debug Info:</strong><br>
+                • Watch the application console logs for detailed session tracking<br>
+                • Each session has a unique 8-character ID for easy identification<br>
+                • Look for "🔍 INITIAL READ" and "🔍 RECHECK READ" log entries<br>
+                • The 15-second delay happens during "STEP 3 - Processing payment"
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateIsolationInfo() {
+            const select = document.getElementById('isolationLevel');
+            const info = document.getElementById('isolationInfo');
+            const descriptions = {
+                'ReadUncommitted': '<strong>Read Uncommitted:</strong> In PostgreSQL, behaves same as Read Committed (PostgreSQL limitation)',
+                'ReadCommitted': '<strong>Read Committed:</strong> Sees committed changes from other transactions during execution',
+                'RepeatableRead': '<strong>Repeatable Read:</strong> Sees a consistent snapshot throughout the transaction',
+                'Serializable': '<strong>Serializable:</strong> Strictest isolation - may block or fail on conflicts'
+            };
+            info.innerHTML = descriptions[select.value];
+        }
+
+        async function refreshStatus() {
+            try {
+                const response = await fetch('/Booking/GetSeatStatus');
+                const data = await response.json();
+                
+                if (data.error) {
+                    console.error('Error fetching status:', data.error);
+                    return;
+                }
+                
+                // Update the display
+                const statusDisplay = document.getElementById('seatStatusDisplay');
+                const statusClass = data.status === 'available' ? 'seat-available' : 
+                                  data.status === 'reserving' ? 'seat-reserving' : 'seat-booked';
+                const indicatorClass = data.status === 'available' ? 'status-available' : 
+                                     data.status === 'reserving' ? 'status-reserving' : 'status-booked';
+                
+                let statusHtml = `
+                    <div class="seat-status ${statusClass}">
+                        <span class="status-indicator ${indicatorClass}"></span>
+                        <strong>Status:</strong> ${data.status.toUpperCase()}
+                        <span style="float: right;"><strong>Price:</strong> $150.00</span>
+                        <br>`;
+                
+                if (data.bookedBy) {
+                    statusHtml += `<span style="color: #d32f2f;"><strong>Booked by:</strong> ${data.bookedBy}</span>`;
+                }
+                if (data.reservedBy) {
+                    statusHtml += `<span style="color: #f57c00;"><strong>Reserved by:</strong> ${data.reservedBy}</span>`;
+                }
+                
+                statusHtml += '</div>';
+                statusDisplay.innerHTML = statusHtml;
+                
+                console.log('Status refreshed:', data);
+            } catch (error) {
+                console.error('Failed to refresh status:', error);
+            }
+        }
+
+        // Auto-refresh every 2 seconds
+        setInterval(refreshStatus, 2000);
+    </script>
+</body>
+</html>
